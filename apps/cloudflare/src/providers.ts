@@ -41,7 +41,7 @@ export class WorkerAI {
 /** Generic generateImage contract: returns a durable asset URL, never a provider URL. */
 export class R2ImageProvider {
   constructor(
-    private env: Env,
+    private env: Env & { ASSETS: R2Bucket },
     private origin: string,
   ) {}
   async generateImage(input: {

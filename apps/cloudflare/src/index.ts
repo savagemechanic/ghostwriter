@@ -16,8 +16,8 @@ import { oauth, authorize } from "./auth";
 import { previewHtml } from "./preview";
 import { GhostwriterService } from "../../../src/core/service.js";
 
-export interface Env
-  extends Pick<Cloudflare.Env, "OAUTH_KV" | "DB" | "ASSETS"> {
+export interface Env extends Pick<Cloudflare.Env, "OAUTH_KV" | "DB"> {
+  ASSETS?: R2Bucket;
   IMAGE_API_URL?: string;
   IMAGE_API_KEY?: string;
   IMAGE_MODEL?: string;
@@ -50,7 +50,9 @@ function service(env: Env, origin = env.PUBLIC_BASE_URL ?? "") {
         return instagram.publishCarousel(input);
       },
     },
-    imageProvider: new R2ImageProvider(env, origin),
+    imageProvider: env.ASSETS
+      ? new R2ImageProvider({ ...env, ASSETS: env.ASSETS }, origin)
+      : null,
   });
 }
 
@@ -252,22 +254,24 @@ export function createServer(env: Env, origin: string) {
       );
     },
   );
-  server.registerTool(
-    "generate_images",
-    {
-      description:
-        "Generate finished JPEG slides for a saved draft using the configured image provider and store them in R2. Incurs provider usage. Does not publish.",
-      inputSchema: z.object({ draftId: z.string().min(1) }),
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        openWorldHint: true,
+  if (env.ASSETS) {
+    server.registerTool(
+      "generate_images",
+      {
+        description:
+          "Generate finished JPEG slides for a saved draft using the configured image provider and store them in R2. Incurs provider usage. Does not publish.",
+        inputSchema: z.object({ draftId: z.string().min(1) }),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          openWorldHint: true,
+        },
+        _meta: previewMeta,
       },
-      _meta: previewMeta,
-    },
-    async ({ draftId }) =>
-      previewResult(await service(env, origin).generateImages({ draftId })),
-  );
+      async ({ draftId }) =>
+        previewResult(await service(env, origin).generateImages({ draftId })),
+    );
+  }
   server.registerResource(
     "Carousel preview",
     "ui://ghostwriter/carousel.html",
@@ -299,6 +303,8 @@ function requirePublishing(env: Env) {
     );
 }
 async function validatePublishAssets(env: Env, urls: string[], origin: string) {
+  if (!env.ASSETS)
+    throw new Error("Image storage is disabled in this deployment");
   for (const value of urls) {
     const u = new URL(value);
     if (
@@ -338,10 +344,12 @@ export default {
         return Response.json({
           ok: true,
           service: "ghostwriter-cloudflare",
+          imageStorageEnabled: Boolean(env.ASSETS),
           publishingEnabled: env.PUBLISHING_ENABLED === "true",
         });
       }
       if (url.pathname.startsWith("/assets/")) {
+        if (!env.ASSETS) throw new HttpError(404, "Image storage is disabled");
         const key = decodeURIComponent(url.pathname.slice(8));
         if (
           !/^[a-zA-Z0-9_/-]+\.jpg$/.test(key) ||
@@ -366,7 +374,12 @@ export default {
         if (request.method !== "PUT")
           throw new HttpError(405, "Method not allowed");
         await requireAdmin(request, env);
-        return await uploadAsset(request, env, key, url.origin);
+        return await uploadAsset(
+          request,
+          { ...env, ASSETS: env.ASSETS },
+          key,
+          url.origin,
+        );
       }
       if (!hasAdminToken(env))
         throw new HttpError(503, "Authentication not configured");

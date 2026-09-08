@@ -22,12 +22,6 @@
       "migrations_dir": "migrations",
     },
   ],
-  "r2_buckets": [
-    {
-      "binding": "ASSETS",
-      "bucket_name": "ghostwriter-assets",
-    },
-  ],
   "kv_namespaces": [
     {
       "binding": "OAUTH_KV",

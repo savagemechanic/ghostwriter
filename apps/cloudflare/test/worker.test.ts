@@ -327,13 +327,11 @@ test("concrete image provider stores returned JPEG bytes in R2", async () => {
   const { R2ImageProvider } = await import("../src/providers");
   const { vi } = await import("vitest");
   const bytes = new Uint8Array([255, 216, 255, 217]);
-  const mocked = vi
-    .spyOn(globalThis, "fetch")
-    .mockResolvedValueOnce(
-      Response.json({
-        data: [{ b64_json: btoa(String.fromCharCode(...bytes)) }],
-      }),
-    );
+  const mocked = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+    Response.json({
+      data: [{ b64_json: btoa(String.fromCharCode(...bytes)) }],
+    }),
+  );
   try {
     const provider = new R2ImageProvider(
       {
@@ -420,4 +418,48 @@ test("OAuth refuses authorization without S256 PKCE", async () => {
     code_challenge_method: "plain",
   });
   expect((await request("/authorize?" + params)).status).toBe(400);
+});
+
+test("personal deployment works without any R2 binding", async () => {
+  expect(
+    await (await request("/health", {}, { ASSETS: undefined })).json(),
+  ).toMatchObject({ ok: true, imageStorageEnabled: false });
+  expect(
+    (await request("/assets/test.jpg", {}, { ASSETS: undefined })).status,
+  ).toBe(404);
+  const token = await obtainToken();
+  const ctx = createExecutionContext();
+  const response = await worker.fetch(
+    new Request(origin + "/mcp", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/list",
+        params: {},
+      }),
+    }),
+    { ...bindings, ASSETS: undefined },
+    ctx,
+  );
+  await waitOnExecutionContext(ctx);
+  expect(response.status).toBe(200);
+  const raw = await response.text();
+  const parsed = JSON.parse(
+    raw.startsWith("{")
+      ? raw
+      : raw
+          .split("\n")
+          .find((l) => l.startsWith("data:"))!
+          .slice(5),
+  );
+  expect(parsed.result.tools).toHaveLength(10);
+  expect(
+    parsed.result.tools.some((tool: any) => tool.name === "generate_images"),
+  ).toBe(false);
 });

@@ -10,7 +10,7 @@ assert.ok(ownerKey.length>=24,'Owner key is missing or too short');
 const send=(path,init={})=>fetch(origin+path,{...init,redirect:'manual',signal:AbortSignal.timeout(30000)});
 const jsonPost=body=>({method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
 const formPost=body=>({method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)});
-const health=await send('/health');assert.equal(health.status,200);assert.equal((await health.json()).ok,true);
+const health=await send('/health');assert.equal(health.status,200);const healthData=await health.json();assert.equal(healthData.ok,true);
 const unauth=await send('/mcp',{method:'POST'});assert.equal(unauth.status,401);assert.ok(unauth.headers.get('www-authenticate')?.includes('resource_metadata'));
 const metadataResponse=await send('/.well-known/oauth-authorization-server');assert.equal(metadataResponse.status,200);const metadata=await metadataResponse.json();
 const resourceResponse=await send('/.well-known/oauth-protected-resource');assert.equal(resourceResponse.status,200);assert.equal((await resourceResponse.json()).resource,origin+'/mcp');
@@ -27,7 +27,7 @@ async function rpc(method,params={}) {
   const response=await send('/mcp',{...jsonPost({jsonrpc:'2.0',id:1,method,params}),headers:{'content-type':'application/json',accept:'application/json, text/event-stream',authorization:`Bearer ${token.access_token}`}});assert.equal(response.status,200);const raw=await response.text();const data=JSON.parse(raw.startsWith('{')?raw:raw.split('\n').find(l=>l.startsWith('data:')).slice(5));assert.ok(data.result,`MCP ${method} failed`);return data.result;
 }
 const initialized=await rpc('initialize',{protocolVersion:'2025-03-26',capabilities:{},clientInfo:{name:'deployment-verifier',version:'1'}});assert.equal(initialized.serverInfo.name,'ghostwriter');
-const listed=await rpc('tools/list');assert.equal(listed.tools.length,11);assert.ok(listed.tools.some(t=>t.name==='generate_images'));
+const listed=await rpc('tools/list');assert.equal(listed.tools.length,healthData.imageStorageEnabled?11:10);assert.equal(listed.tools.some(t=>t.name==='generate_images'),healthData.imageStorageEnabled);
 // Revoke the verification grant when the provider advertises an endpoint.
 if(metadata.revocation_endpoint) {
   const endpoint=new URL(metadata.revocation_endpoint);assert.equal(endpoint.origin,origin);

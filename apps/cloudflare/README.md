@@ -1,6 +1,12 @@
 # Ghostwriter on Cloudflare
 
-Single-owner MCP server with OAuth 2.1 authorization-code + S256 PKCE, D1 state, public JPEG assets in R2, and a 15-minute Cron. Publishing is disabled by default. Do not enable it or approve a scheduled post without the owner's explicit approval.
+Single-owner MCP server with OAuth 2.1 authorization-code + S256 PKCE, D1 state, OAuth KV, optional public JPEG assets in R2, and a 15-minute Cron. Publishing is disabled by default. Do not enable it or approve a scheduled post without the owner's explicit approval.
+
+## Personal deployment without R2
+
+The checked-in personal configuration uses Workers Free, D1 and KV only. R2 is not bound or activated. `/assets/*` returns 404 and `generate_images` is omitted from MCP discovery. No image-provider credentials are needed. Text generation requires an independently configured provider; without one it fails with a configuration error. Publishing stays disabled. The full R2 adapter remains available for deployments that opt in by adding an `ASSETS` R2 binding.
+
+Free-plan quotas still apply. This configuration does not upgrade the Workers plan or automatically buy additional capacity. See [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/), [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/) and [KV pricing](https://developers.cloudflare.com/kv/platform/pricing/).
 
 ## Install and validate
 
@@ -22,8 +28,9 @@ Use an existing Cloudflare account and `npx wrangler whoami` to confirm it. Reso
 ```sh
 npx wrangler d1 create ghostwriter
 npx wrangler kv namespace create OAUTH_KV
-npx wrangler r2 bucket create ghostwriter-assets
 ```
+
+Only for an optional image-enabled deployment, activate R2 with approval, create `ghostwriter-assets`, and add its `ASSETS` binding to `wrangler.jsonc`.
 
 Record the D1 and KV IDs in `wrangler.jsonc`, then apply both migrations:
 

@@ -5,6 +5,7 @@ export default defineConfig({
     cloudflareTest({
       wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: {
+        r2Buckets: ["ASSETS"],
         bindings: {
           GHOSTWRITER_ADMIN_TOKEN: "test-owner-key-that-is-never-real",
         },
