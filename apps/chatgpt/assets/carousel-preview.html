@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ghostwriter Carousel Preview</title>
+  <style>
+    :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; padding: 16px; background: transparent; color: CanvasText; }
+    .card { border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); border-radius: 16px; padding: 16px; background: color-mix(in srgb, Canvas 96%, transparent); }
+    .eyebrow { opacity: .62; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    h2 { margin: 6px 0 4px; font-size: 20px; }
+    .hook { margin: 0 0 14px; font-weight: 650; }
+    .slides { display: grid; gap: 8px; }
+    .slide { border: 1px solid color-mix(in srgb, CanvasText 12%, transparent); border-radius: 12px; padding: 10px 12px; }
+    .slide strong { display: block; font-size: 12px; opacity: .6; margin-bottom: 4px; }
+    .meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; font-size: 12px; opacity: .7; }
+    .empty { opacity: .65; }
+  </style>
+</head>
+<body>
+  <div id="root" class="card"><div class="empty">Ghostwriter is preparing the carousel preview…</div></div>
+  <script>
+    const root = document.getElementById('root');
+    const escapeHtml = (value = '') => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
+    function render(data) {
+      const draft = data?.draft ?? data;
+      if (!draft || !Array.isArray(draft.slides)) return;
+      root.innerHTML = `
+        <div class="eyebrow">${escapeHtml(draft.pillar ?? 'Carousel')}</div>
+        <h2>${escapeHtml(draft.title ?? 'Untitled draft')}</h2>
+        <p class="hook">${escapeHtml(draft.hook ?? '')}</p>
+        <div class="slides">${draft.slides.map((slide, i) => `
+          <div class="slide"><strong>SLIDE ${i + 1}</strong>${escapeHtml(slide.copy ?? '')}</div>
+        `).join('')}</div>
+        <div class="meta"><span>${draft.slides.length} slides</span><span>${escapeHtml(draft.status ?? 'draft')}</span></div>`;
+    }
+
+    if (window.openai?.toolOutput) render(window.openai.toolOutput);
+    window.addEventListener('message', (event) => {
+      const data = event?.data?.structuredContent ?? event?.data?.toolOutput ?? event?.data;
+      if (data?.draft || data?.slides) render(data);
+    });
+  </script>
+</body>
+</html>
