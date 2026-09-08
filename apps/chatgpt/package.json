@@ -1,0 +1,20 @@
+{
+  "name": "@ghostwriter/chatgpt-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ChatGPT Apps SDK / MCP integration for Ghostwriter.",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "check": "node --check src/server.js"
+  },
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.0.1",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "zod": "^3.24.4"
+  }
+}
