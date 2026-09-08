@@ -68,7 +68,11 @@ Identity → Strategy → Generation → Validation → Publish → Metrics
    └──────────────────── learning loop ─────────────────────┘
 ```
 
-See `docs/ARCHITECTURE.md`, `docs/API.md`, `docs/SECURITY.md`, and `docs/ROADMAP.md`.
+See `docs/ARCHITECTURE.md`, `docs/API.md`, `docs/CHATGPT_APP.md`, `docs/SECURITY.md`, and `docs/ROADMAP.md`.
+
+## ChatGPT app
+
+Ghostwriter now ships a remote MCP / Apps SDK integration in `apps/chatgpt`. Run that package, expose `/mcp` over HTTPS, and add the endpoint as a custom app in ChatGPT Developer Mode. The app exposes identity, generation, preview, analytics-history, metrics, and Instagram publishing tools while keeping Ghostwriter core usable outside ChatGPT.
 
 ## License
 
