@@ -9,6 +9,9 @@
     "META_GRAPH_BASE": "https://graph.facebook.com",
     "META_GRAPH_VERSION": "v23.0"
   },
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
   "d1_databases": [
     {
       "binding": "DB",
