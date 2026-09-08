@@ -20,9 +20,9 @@ Ghostwriter turns that workflow into software you can run yourself.
 
 This project is not affiliated with Ocoya, Meta, Instagram, or any other commercial platform. Brand names are used only for descriptive comparison. Ghostwriter is an independent clean-room open-source project.
 
-## v0.1 — working core
+## Working core
 
-Ghostwriter already has a runnable zero-dependency Node 22 core. It can:
+Ghostwriter can:
 
 - persist a creator/character identity and brand rules;
 - weight content pillars from historical performance;
@@ -31,7 +31,8 @@ Ghostwriter already has a runnable zero-dependency Node 22 core. It can:
 - enforce per-brand hashtag limits;
 - publish Instagram carousels through a Meta Graph API adapter;
 - expose the workflow through a local HTTP API and dashboard;
-- run entirely with Node built-ins in the first release.
+- expose Ghostwriter directly inside ChatGPT through MCP;
+- run as a normal Node service or as a Cloudflare Worker.
 
 ```bash
 cp .env.example .env
@@ -39,6 +40,25 @@ npm test
 npm start
 # open http://localhost:8787
 ```
+
+## $0 hosting path: Cloudflare
+
+Ghostwriter now has a first-class deployment target in `apps/cloudflare`:
+
+```text
+ChatGPT
+   │ MCP
+   ▼
+Cloudflare Worker
+   ├── D1      identity / drafts / history / metrics
+   ├── R2      carousel assets
+   ├── AI API  generation
+   └── Meta     Instagram publishing
+```
+
+The Worker exposes `/mcp` for ChatGPT and `/assets/*` for stable image URLs. Structured state lives in D1 instead of the local filesystem, and image assets live in R2. This keeps the Worker stateless and makes free-tier deployment practical.
+
+See `apps/cloudflare/README.md` for the complete setup.
 
 ## First target: Instagram carousels
 
@@ -72,7 +92,12 @@ See `docs/ARCHITECTURE.md`, `docs/API.md`, `docs/CHATGPT_APP.md`, `docs/SECURITY
 
 ## ChatGPT app
 
-Ghostwriter now ships a remote MCP / Apps SDK integration in `apps/chatgpt`. Run that package, expose `/mcp` over HTTPS, and add the endpoint as a custom app in ChatGPT Developer Mode. The app exposes identity, generation, preview, analytics-history, metrics, and Instagram publishing tools while keeping Ghostwriter core usable outside ChatGPT.
+Ghostwriter ships two MCP deployment paths:
+
+- `apps/chatgpt` — conventional Node-hosted ChatGPT app server.
+- `apps/cloudflare` — Cloudflare Workers + D1 + R2, intended as the simplest zero-server-cost path.
+
+Both keep Ghostwriter core usable outside ChatGPT.
 
 ## License
 
