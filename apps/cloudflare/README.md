@@ -82,3 +82,11 @@ For a `publishing`, `running`, or `publish_failed` record after interruption, re
 Put test secrets in ignored `.dev.vars`, run `npm run db:migrate:local`, then `npm run dev`. Tests use fake secrets and isolated local bindings. The `apps/chatgpt` Node target uses a private bearer gate for local development; use this Worker target for ChatGPT OAuth. The filesystem store supports one Node process per data directory; production concurrency uses D1.
 
 See [the API/security audit](../../docs/PRODUCTION_READINESS.md) for documentation sources and remaining live verification requirements.
+
+For remote protocol verification, from the repository root run:
+
+```sh
+node scripts/verify-deployment.mjs "$WORKER_ORIGIN" /path/to/private-owner-key-file
+```
+
+The script reads the key from the supplied private file, exercises OAuth, validates health and MCP discovery, and prints only successful verification results. It does not call publishing or generation tools. It creates a test OAuth client/grant; if revocation is advertised, it revokes the grant after testing.

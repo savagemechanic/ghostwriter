@@ -27,3 +27,5 @@ Source: [OpenAI image generation](https://developers.openai.com/api/docs/guides/
 CI covers shared core/Instagram behaviors, authenticated Node MCP initialize/tools/list, Worker TypeScript, real local-runtime OAuth/MCP exchanges, R2 access controls, D1 concurrency, failure persistence, history repair and manual schedule approval, plus a Wrangler bundle dry run. Tests do not prove live Meta publishing, remote Cloudflare health, or successful ChatGPT UI connection.
 
 At the account preflight, Wrangler authentication worked, but R2 returned Cloudflare error 10042 requiring account activation. Do not activate a billing-backed service without owner approval. The final verified Worker and MCP URLs must be reported only after remote health and authenticated MCP protocol checks pass. Keep `PUBLISHING_ENABLED=false` throughout deployment verification.
+
+Remote provisioning completed: D1 `ghostwriter` (`a8f36e7e-ea90-4413-91da-9b3219551098`), both migrations applied; OAuth KV namespace `d8f21913223f4e7a8cd8a199a5a28b5e`. R2, Worker deployment and live protocol checks remain pending R2 activation approval. No AI or Meta credentials have been provisioned.

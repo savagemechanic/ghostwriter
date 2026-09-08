@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ghostwriter",
+  "account_id": "ecc90d64c0a91444c19af318526d2190",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-08",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
@@ -17,7 +18,7 @@
     {
       "binding": "DB",
       "database_name": "ghostwriter",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "a8f36e7e-ea90-4413-91da-9b3219551098",
       "migrations_dir": "migrations",
     },
   ],
@@ -30,7 +31,7 @@
   "kv_namespaces": [
     {
       "binding": "OAUTH_KV",
-      "id": "REPLACE_WITH_OAUTH_KV_ID",
+      "id": "d8f21913223f4e7a8cd8a199a5a28b5e",
     },
   ],
   "observability": {
