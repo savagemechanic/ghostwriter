@@ -7,8 +7,10 @@
   "scripts": {
     "dev": "node --watch src/server/index.js",
     "start": "node src/server/index.js",
-    "test": "node --test",
-    "check": "node --check src/server/index.js && node --test"
+    "test": "node --test test/*.test.js",
+    "check": "node --check src/server/index.js && npm test"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  }
 }
