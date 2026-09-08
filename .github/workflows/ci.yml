@@ -26,3 +26,9 @@ jobs:
           trap 'kill $PID || true' EXIT
           sleep 3
           curl --fail --silent http://localhost:8788/health
+      - name: Install Cloudflare target dependencies
+        working-directory: apps/cloudflare
+        run: npm install
+      - name: Type-check Cloudflare target
+        working-directory: apps/cloudflare
+        run: npm run check
