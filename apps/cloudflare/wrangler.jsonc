@@ -6,6 +6,7 @@
   "compatibility_date": "2026-09-08",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "vars": {
+    "PUBLIC_BASE_URL": "https://ghostwriter.ghostwriter-cloudflare.workers.dev",
     "AI_API_URL": "https://api.openai.com/v1/chat/completions",
     "META_GRAPH_BASE": "https://graph.facebook.com",
     "META_GRAPH_VERSION": "v23.0",
