@@ -10,6 +10,15 @@ export class GhostwriterService {
   }
   async getIdentity() { return this.store.read('identity'); }
   async history() { return this.store.read('history', []); }
+  async getDraft(draftId) { return this.store.read(`draft-${draftId}`); }
+  async recordMetrics(mediaId, metrics) {
+    const history = await this.history();
+    const index = history.findIndex(entry => entry.mediaId === mediaId);
+    if (index < 0) throw new Error('Published media not found in Ghostwriter history');
+    history[index] = { ...history[index], metrics: { ...(history[index].metrics ?? {}), ...metrics }, metricsUpdatedAt: new Date().toISOString() };
+    await this.store.write('history', history);
+    return history[index];
+  }
   async generate({ objective = 'engagement', pillar } = {}) {
     const identity = await this.getIdentity();
     if (!identity) throw new Error('Create an identity first');
