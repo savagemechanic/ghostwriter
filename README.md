@@ -41,7 +41,7 @@ npm start
 # open http://localhost:8787
 ```
 
-## $0 hosting path: Cloudflare
+## Cloudflare hosting
 
 Ghostwriter now has a first-class deployment target in `apps/cloudflare`:
 
@@ -56,7 +56,7 @@ Cloudflare Worker
    └── Meta     Instagram publishing
 ```
 
-The Worker exposes `/mcp` for ChatGPT and `/assets/*` for stable image URLs. Structured state lives in D1 instead of the local filesystem, and image assets live in R2. This keeps the Worker stateless and makes free-tier deployment practical.
+The Worker exposes `/mcp` for ChatGPT and `/assets/*` for stable image URLs. Structured state lives in D1 instead of the local filesystem, and image assets live in R2. The Worker uses OAuth with PKCE for a single owner. Cloudflare allowances may cover light usage, but R2 activation and AI generation can require billing; hosting is not guaranteed to be free.
 
 See `apps/cloudflare/README.md` for the complete setup.
 
@@ -95,7 +95,7 @@ See `docs/ARCHITECTURE.md`, `docs/API.md`, `docs/CHATGPT_APP.md`, `docs/SECURITY
 Ghostwriter ships two MCP deployment paths:
 
 - `apps/chatgpt` — conventional Node-hosted ChatGPT app server.
-- `apps/cloudflare` — Cloudflare Workers + D1 + R2, intended as the simplest zero-server-cost path.
+- `apps/cloudflare` — Cloudflare Workers + D1 + R2, the production deployment target with OAuth authentication.
 
 Both keep Ghostwriter core usable outside ChatGPT.
 

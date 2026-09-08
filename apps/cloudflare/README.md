@@ -1,93 +1,84 @@
 # Ghostwriter on Cloudflare
 
-This deployment target runs Ghostwriter as a stateless MCP server on Cloudflare Workers, stores structured state in D1, and serves carousel assets from R2.
+Single-owner MCP server with OAuth 2.1 authorization-code + S256 PKCE, D1 state, public JPEG assets in R2, and a 15-minute Cron. Publishing is disabled by default. Do not enable it or approve a scheduled post without the owner's explicit approval.
 
-## Architecture
+## Install and validate
 
-ChatGPT -> Worker `/mcp` -> Ghostwriter core -> D1 / R2 / AI provider / Instagram Graph API
+Use Node 22 or newer. From this directory:
 
-## Setup
-
-1. Install dependencies:
-
-```bash
-cd apps/cloudflare
-npm install
+```sh
+npm ci
+npm run check
+npm test
+npx wrangler deploy --dry-run --outdir .wrangler/dry-run
 ```
 
-2. Authenticate Wrangler:
+`check` regenerates Worker environment/runtime types. Tests execute in Cloudflare's local runtime with D1, KV and R2 and run a real OAuth/MCP protocol exchange. They mock AI/Instagram requests and do not incur provider usage or publish anything. GitHub CI also runs core behavior and Node MCP protocol tests.
 
-```bash
-npx wrangler login
-```
+## Provision
 
-3. Create the D1 database:
+Use an existing Cloudflare account and `npx wrangler whoami` to confirm it. Resource creation is separate from paid-plan activation. R2 may require billing enrollment even when usage fits its allowance; obtain owner approval before enabling that service. Do not upgrade a plan automatically.
 
-```bash
+```sh
 npx wrangler d1 create ghostwriter
-```
-
-Copy the returned `database_id` into `wrangler.jsonc`.
-
-4. Create the R2 bucket:
-
-```bash
+npx wrangler kv namespace create OAUTH_KV
 npx wrangler r2 bucket create ghostwriter-assets
 ```
 
-5. Apply the D1 migration:
+Record the D1 and KV IDs in `wrangler.jsonc`, then apply both migrations:
 
-```bash
+```sh
 npm run db:migrate:remote
 ```
 
-6. Add secrets:
+## Configuration and secrets
 
-```bash
+Use Wrangler's interactive secret input, never commit keys or paste them into a task transcript:
+
+```sh
+npx wrangler secret put GHOSTWRITER_ADMIN_TOKEN
 npx wrangler secret put AI_API_KEY
-npx wrangler secret put AI_MODEL
+npx wrangler secret put IMAGE_API_KEY
 npx wrangler secret put INSTAGRAM_USER_ID
 npx wrangler secret put INSTAGRAM_ACCESS_TOKEN
-npx wrangler secret put GHOSTWRITER_ADMIN_TOKEN
 ```
 
-`GHOSTWRITER_ADMIN_TOKEN` protects direct R2 uploads. The MCP endpoint is intentionally separate so it can later use OAuth for ChatGPT.
+The owner key must be a random secret of at least 24 characters. It is used only to approve OAuth consent and authenticate direct JPEG uploads; it is **not** an MCP access token. Store it in the owner's password manager. A missing/short key makes `/mcp` and OAuth fail closed with 503. `/health` and existing public JPEG GETs remain available.
 
-7. Deploy:
+Set these non-secret values in `wrangler.jsonc` for the chosen providers:
 
-```bash
+- `AI_API_URL` and `AI_MODEL`: OpenAI-compatible chat completions with JSON output.
+- `IMAGE_API_URL` and `IMAGE_MODEL`: OpenAI-compatible image generations endpoint returning `data[0].b64_json`. The adapter requests one 1024×1024 JPEG, stores it in R2, and returns the Worker asset URL. URL-only image responses are rejected. This concrete adapter can be replaced without changing the generic core `generateImage(input)` interface.
+- `META_GRAPH_BASE` and `META_GRAPH_VERSION`: must match the Meta login product and version selected in the owner's app. The default is Facebook Login at `graph.facebook.com`, version `v23.0`; do not substitute Instagram Login tokens.
+- `PUBLIC_BASE_URL`: exact canonical HTTPS Worker origin, without a trailing slash. Set it once the Worker address is known; scheduled publishing requires it.
+- `PUBLISHING_ENABLED`: leave `false` during setup and connection verification.
+
+AI and Meta secrets can remain absent for protocol-only verification; their operations fail until configured. Image generation uses billable provider APIs when configured. This project does not create subscriptions or supply credentials.
+
+## Deploy and connect
+
+Deploy only when CI for the exact commit is green:
+
+```sh
 npm run deploy
 ```
 
-Wrangler will return a `workers.dev` HTTPS URL. Your ChatGPT MCP endpoint is:
+Check the returned origin's `/health` and D1 response. Set `PUBLIC_BASE_URL` to that origin and deploy the configuration through the same green-CI gate. Connect ChatGPT to that origin plus `/mcp`, choosing OAuth. Discovery is served at `/.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server`. Dynamic client registration is `/oauth/register`; token exchange is `/oauth/token`.
 
-```text
-https://<worker>.<subdomain>.workers.dev/mcp
-```
+The consent page displays the requesting client and callback origin. The owner enters the access key on that page and explicitly authorizes the client. Authorization uses a short-lived, single-use consent record, a secure HttpOnly cookie, origin checks and S256 PKCE. Access tokens expire after one hour and refresh grants after seven days. CIMD is disabled; dynamic registration is supported. This is an owner-only deployment, not a multi-tenant identity system.
 
-## Asset uploads
+Before calling a deployment verified, perform authenticated MCP `initialize`, then `tools/list`; `/health` alone is insufficient. Local tests establish protocol behavior, not successful linking in the actual ChatGPT UI. Test UI linking separately without publishing.
 
-Upload a generated image to R2 through the Worker:
+## Assets and scheduling
 
-```bash
-curl -X PUT \
-  -H "Authorization: Bearer $GHOSTWRITER_ADMIN_TOKEN" \
-  -H "Content-Type: image/png" \
-  --data-binary @slide-1.png \
-  https://<worker>.<subdomain>.workers.dev/assets/carousels/example/slide-1.png
-```
+`PUT /assets/<new-key>.jpg` requires the owner bearer key. Only JPEG MIME/signature is accepted, with the actual stream limited to 8 MiB. Existing assets cannot be overwritten. GET/HEAD is public so Meta can retrieve images; don't upload private images. URLs used for Worker publishing must refer to existing JPEG objects on this Worker's origin.
 
-The response contains a stable public HTTPS URL suitable for Instagram's media publishing API.
+All MCP schedules require manual approval. Approving a schedule is an external publishing authorization, and is blocked while publishing is disabled. Cron processes at most one due approved job per tick. D1 claims prevent simultaneous requests/runners from publishing a draft twice. Each Instagram operation is bounded to ten minutes; network requests have 30-second timeouts. Container states are polled before final publication. Failed or ambiguous writes are never automatically retried.
+
+For a `publishing`, `running`, or `publish_failed` record after interruption, reconcile the account in Meta first. If the post exists, record its media ID and published timestamp in the draft; the next core publish request repairs missing history without posting again. Only reset a failed draft after independently establishing that no post was created. Do not reset state merely to clear an error.
 
 ## Local development
 
-```bash
-npm run db:migrate:local
-npm run dev
-```
+Put test secrets in ignored `.dev.vars`, run `npm run db:migrate:local`, then `npm run dev`. Tests use fake secrets and isolated local bindings. The `apps/chatgpt` Node target uses a private bearer gate for local development; use this Worker target for ChatGPT OAuth. The filesystem store supports one Node process per data directory; production concurrency uses D1.
 
-Wrangler provides local D1/R2 simulations by default.
-
-## Security note
-
-Do not expose Instagram tokens or AI keys as ordinary Worker variables. Store them with `wrangler secret put`. Before publishing Ghostwriter as a multi-user ChatGPT app, add OAuth to `/mcp`; the current target is optimized for a single-owner deployment.
+See [the API/security audit](../../docs/PRODUCTION_READINESS.md) for documentation sources and remaining live verification requirements.

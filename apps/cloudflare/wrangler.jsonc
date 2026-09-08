@@ -3,27 +3,40 @@
   "name": "ghostwriter",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-08",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "vars": {
     "AI_API_URL": "https://api.openai.com/v1/chat/completions",
     "META_GRAPH_BASE": "https://graph.facebook.com",
-    "META_GRAPH_VERSION": "v23.0"
+    "META_GRAPH_VERSION": "v23.0",
+    "PUBLISHING_ENABLED": "false",
   },
   "triggers": {
-    "crons": ["*/15 * * * *"]
+    "crons": ["*/15 * * * *"],
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "ghostwriter",
       "database_id": "REPLACE_WITH_D1_DATABASE_ID",
-      "migrations_dir": "migrations"
-    }
+      "migrations_dir": "migrations",
+    },
   ],
   "r2_buckets": [
     {
       "binding": "ASSETS",
-      "bucket_name": "ghostwriter-assets"
-    }
-  ]
+      "bucket_name": "ghostwriter-assets",
+    },
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "OAUTH_KV",
+      "id": "REPLACE_WITH_OAUTH_KV_ID",
+    },
+  ],
+  "observability": {
+    "enabled": true,
+    "traces": {
+      "enabled": true,
+    },
+  },
 }

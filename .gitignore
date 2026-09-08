@@ -5,3 +5,10 @@ data/*.json
 .DS_Store
 *.log
 coverage/
+
+.dev.vars*
+.env.*
+!.env.example
+.wrangler/
+
+apps/cloudflare/worker-configuration.d.ts

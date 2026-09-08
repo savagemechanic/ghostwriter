@@ -8,16 +8,21 @@
     "db:create": "wrangler d1 create ghostwriter",
     "db:migrate:local": "wrangler d1 migrations apply ghostwriter --local",
     "db:migrate:remote": "wrangler d1 migrations apply ghostwriter --remote",
-    "check": "tsc --noEmit"
+    "check": "wrangler types && tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@cloudflare/workers-oauth-provider": "^0.10.3",
     "@modelcontextprotocol/server": "2.0.0",
     "agents": "0.20.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "latest",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.2",
-    "wrangler": "^4.0.0"
+    "vitest": "^4.1.11",
+    "wrangler": "^4.0.0",
+    "@cloudflare/vitest-plugin": "latest",
+    "@types/node": "^22.0.0"
   }
 }

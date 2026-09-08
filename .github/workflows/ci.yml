@@ -14,21 +14,22 @@ jobs:
       - run: npm run check
       - name: Install ChatGPT app dependencies
         working-directory: apps/chatgpt
-        run: npm install
+        run: npm ci
       - name: Check ChatGPT app
         working-directory: apps/chatgpt
         run: npm run check
-      - name: Smoke test ChatGPT MCP server
+      - name: Test authenticated Node MCP initialize and tools/list
         working-directory: apps/chatgpt
-        run: |
-          npm start > /tmp/ghostwriter-chatgpt.log 2>&1 &
-          PID=$!
-          trap 'kill $PID || true' EXIT
-          sleep 3
-          curl --fail --silent http://localhost:8788/health
+        run: npm test
       - name: Install Cloudflare target dependencies
         working-directory: apps/cloudflare
-        run: npm install
+        run: npm ci
       - name: Type-check Cloudflare target
         working-directory: apps/cloudflare
         run: npm run check
+      - name: Cloudflare behavior and OAuth MCP tests
+        working-directory: apps/cloudflare
+        run: npm test
+      - name: Bundle Cloudflare Worker without deployment
+        working-directory: apps/cloudflare
+        run: npx wrangler deploy --dry-run --outdir .wrangler/dry-run
