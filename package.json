@@ -1,0 +1,14 @@
+{
+  "name": "ghostwriter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Open-source, self-hosted AI social media operator.",
+  "scripts": {
+    "dev": "node --watch src/server/index.js",
+    "start": "node src/server/index.js",
+    "test": "node --test",
+    "check": "node --check src/server/index.js && node --test"
+  },
+  "engines": { "node": ">=22" }
+}
