@@ -12,4 +12,17 @@ jobs:
           node-version: 22
       - run: npm test
       - run: npm run check
-      - run: node --check apps/chatgpt/src/server.js
+      - name: Install ChatGPT app dependencies
+        working-directory: apps/chatgpt
+        run: npm install
+      - name: Check ChatGPT app
+        working-directory: apps/chatgpt
+        run: npm run check
+      - name: Smoke test ChatGPT MCP server
+        working-directory: apps/chatgpt
+        run: |
+          npm start > /tmp/ghostwriter-chatgpt.log 2>&1 &
+          PID=$!
+          trap 'kill $PID || true' EXIT
+          sleep 3
+          curl --fail --silent http://localhost:8788/health
