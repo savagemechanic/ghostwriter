@@ -1,0 +1,23 @@
+{
+  "name": "ghostwriter-cloudflare",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create ghostwriter",
+    "db:migrate:local": "wrangler d1 migrations apply ghostwriter --local",
+    "db:migrate:remote": "wrangler d1 migrations apply ghostwriter --remote",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
+    "agents": "^0.6.0",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260901.0",
+    "typescript": "^5.9.2",
+    "wrangler": "^4.0.0"
+  }
+}
