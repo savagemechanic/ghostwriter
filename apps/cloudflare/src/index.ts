@@ -36,47 +36,96 @@ class WorkerAI {
   constructor(private env: Env) {}
   async generateJson(system: string, prompt: string) {
     if (!this.env.AI_API_KEY || !this.env.AI_MODEL) throw new Error('AI_API_KEY and AI_MODEL are required');
-    const res = await fetch(this.env.AI_API_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${this.env.AI_API_KEY}` },
-      body: JSON.stringify({
-        model: this.env.AI_MODEL,
-        response_format: { type: 'json_object' },
-        messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }]
-      })
-    });
-    if (!res.ok) throw new Error(`AI provider failed: ${res.status} ${await res.text()}`);
-    const data: any = await res.json();
-    const text = data?.choices?.[0]?.message?.content;
-    if (!text) throw new Error('AI provider returned no JSON content');
-    return JSON.parse(text);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45_000);
+    try {
+      const res = await fetch(this.env.AI_API_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${this.env.AI_API_KEY}` },
+        body: JSON.stringify({
+          model: this.env.AI_MODEL,
+          response_format: { type: 'json_object' },
+          messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }]
+        }),
+        signal: controller.signal
+      });
+      if (!res.ok) throw new Error(`AI provider failed: ${res.status} ${await res.text()}`);
+      const data: any = await res.json();
+      const text = data?.choices?.[0]?.message?.content;
+      if (!text) throw new Error('AI provider returned no JSON content');
+      return JSON.parse(text);
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 }
 
 class WorkerInstagram {
   constructor(private env: Env) {}
-  private async graph(path: string, body: URLSearchParams) {
-    body.set('access_token', this.env.INSTAGRAM_ACCESS_TOKEN);
+
+  private async request(path: string, init: RequestInit = {}) {
     const base = `${this.env.META_GRAPH_BASE}/${this.env.META_GRAPH_VERSION}`;
-    const res = await fetch(`${base}/${path}`, { method: 'POST', body });
-    if (!res.ok) throw new Error(`Instagram Graph API failed: ${res.status} ${await res.text()}`);
-    return res.json<any>();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+    try {
+      const res = await fetch(`${base}/${path}`, { ...init, signal: controller.signal });
+      if (!res.ok) throw new Error(`Instagram Graph API failed: ${res.status} ${await res.text()}`);
+      return res.json<any>();
+    } finally {
+      clearTimeout(timeout);
+    }
   }
+
+  private async graphPost(path: string, body: URLSearchParams) {
+    body.set('access_token', this.env.INSTAGRAM_ACCESS_TOKEN);
+    return this.request(path, { method: 'POST', body });
+  }
+
+  private async waitForContainer(containerId: string) {
+    const maxAttempts = 12;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const qs = new URLSearchParams({
+        fields: 'status_code,status',
+        access_token: this.env.INSTAGRAM_ACCESS_TOKEN
+      });
+      const status = await this.request(`${containerId}?${qs.toString()}`);
+      if (status.status_code === 'FINISHED') return;
+      if (status.status_code === 'ERROR' || status.status_code === 'EXPIRED') {
+        throw new Error(`Instagram container ${containerId} failed: ${status.status ?? status.status_code}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2_500));
+    }
+    throw new Error(`Instagram container ${containerId} did not finish processing in time`);
+  }
+
   async publishCarousel({ imageUrls, caption }: { imageUrls: string[]; caption: string }) {
     if (!this.env.INSTAGRAM_USER_ID || !this.env.INSTAGRAM_ACCESS_TOKEN) throw new Error('Instagram credentials are required');
     if (!Array.isArray(imageUrls) || imageUrls.length < 2 || imageUrls.length > 10) throw new Error('Instagram carousel requires 2-10 image URLs');
+
     const children: string[] = [];
     for (const imageUrl of imageUrls) {
-      const p = new URLSearchParams({ image_url: imageUrl, is_carousel_item: 'true' });
-      const child = await this.graph(`${this.env.INSTAGRAM_USER_ID}/media`, p);
+      const parsed = new URL(imageUrl);
+      if (parsed.protocol !== 'https:') throw new Error('Instagram image URLs must use HTTPS');
+      const child = await this.graphPost(`${this.env.INSTAGRAM_USER_ID}/media`, new URLSearchParams({
+        image_url: imageUrl,
+        is_carousel_item: 'true'
+      }));
+      if (!child?.id) throw new Error('Instagram did not return a child container ID');
+      await this.waitForContainer(child.id);
       children.push(child.id);
     }
-    const carousel = await this.graph(`${this.env.INSTAGRAM_USER_ID}/media`, new URLSearchParams({
+
+    const carousel = await this.graphPost(`${this.env.INSTAGRAM_USER_ID}/media`, new URLSearchParams({
       media_type: 'CAROUSEL',
       children: children.join(','),
       caption
     }));
-    return this.graph(`${this.env.INSTAGRAM_USER_ID}/media_publish`, new URLSearchParams({ creation_id: carousel.id }));
+    if (!carousel?.id) throw new Error('Instagram did not return a carousel container ID');
+    await this.waitForContainer(carousel.id);
+
+    const published = await this.graphPost(`${this.env.INSTAGRAM_USER_ID}/media_publish`, new URLSearchParams({ creation_id: carousel.id }));
+    if (!published?.id) throw new Error('Instagram did not return a published media ID');
+    return published;
   }
 }
 
@@ -85,7 +134,7 @@ function service(env: Env) {
 }
 
 function createServer(env: Env) {
-  const server = new McpServer({ name: 'ghostwriter', version: '0.2.0' });
+  const server = new McpServer({ name: 'ghostwriter', version: '0.2.1' });
 
   server.registerTool('get_identity', {
     description: 'Get the creator identity and brand rules Ghostwriter uses.',
@@ -95,7 +144,7 @@ function createServer(env: Env) {
 
   server.registerTool('save_identity', {
     description: 'Save or replace the creator identity and brand rules.',
-    inputSchema: { identity: z.record(z.any()) },
+    inputSchema: { identity: z.record(z.string(), z.unknown()) },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   }, async ({ identity }) => ({ content: [{ type: 'text', text: JSON.stringify(await service(env).saveIdentity(identity)) }] }));
 
@@ -121,7 +170,7 @@ function createServer(env: Env) {
   });
 
   server.registerTool('publish_carousel', {
-    description: 'Publish a saved carousel draft to the connected Instagram account. This is an external write action.',
+    description: 'Publish a saved carousel draft to the connected Instagram account. This is an external write action and must only be called after explicit user approval.',
     inputSchema: { draftId: z.string(), imageUrls: z.array(z.string().url()).min(2).max(10) },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true }
   }, async ({ draftId, imageUrls }) => ({ content: [{ type: 'text', text: JSON.stringify(await service(env).publish({ draftId, imageUrls })) }] }));
@@ -131,9 +180,23 @@ function createServer(env: Env) {
 
 const mcp = (request: Request, env: Env, ctx: ExecutionContext) => createMcpHandler(() => createServer(env))(request, env, ctx);
 
+function hasAdminToken(env: Env) {
+  return typeof env.GHOSTWRITER_ADMIN_TOKEN === 'string' && env.GHOSTWRITER_ADMIN_TOKEN.length >= 24;
+}
+
 function authorized(request: Request, env: Env) {
-  if (!env.GHOSTWRITER_ADMIN_TOKEN) return true;
+  if (!hasAdminToken(env)) return false;
   return request.headers.get('authorization') === `Bearer ${env.GHOSTWRITER_ADMIN_TOKEN}`;
+}
+
+function requireAuth(request: Request, env: Env) {
+  if (!hasAdminToken(env)) {
+    return new Response('Ghostwriter authentication is not configured', { status: 503 });
+  }
+  if (!authorized(request, env)) {
+    return new Response('Unauthorized', { status: 401, headers: { 'www-authenticate': 'Bearer' } });
+  }
+  return null;
 }
 
 export default {
@@ -143,13 +206,18 @@ export default {
 
     if (url.pathname.startsWith('/assets/')) {
       const key = decodeURIComponent(url.pathname.slice('/assets/'.length));
-      if (!key) return new Response('Missing asset key', { status: 400 });
+      if (!key || key.includes('..') || key.startsWith('/')) return new Response('Invalid asset key', { status: 400 });
       if (request.method === 'PUT') {
-        if (!authorized(request, env)) return new Response('Unauthorized', { status: 401 });
-        await env.ASSETS.put(key, request.body, { httpMetadata: { contentType: request.headers.get('content-type') ?? 'application/octet-stream' } });
+        const denied = requireAuth(request, env);
+        if (denied) return denied;
+        const contentLength = Number(request.headers.get('content-length') ?? '0');
+        if (contentLength > 20 * 1024 * 1024) return new Response('Asset too large', { status: 413 });
+        const contentType = request.headers.get('content-type') ?? 'application/octet-stream';
+        if (!contentType.startsWith('image/')) return new Response('Only image assets are allowed', { status: 415 });
+        await env.ASSETS.put(key, request.body, { httpMetadata: { contentType } });
         const publicUrl = `${env.PUBLIC_BASE_URL ?? url.origin}/assets/${encodeURIComponent(key)}`;
         await env.DB.prepare('INSERT OR REPLACE INTO assets (id, r2_key, content_type, public_url) VALUES (?, ?, ?, ?)')
-          .bind(crypto.randomUUID(), key, request.headers.get('content-type'), publicUrl).run();
+          .bind(crypto.randomUUID(), key, contentType, publicUrl).run();
         return Response.json({ key, url: publicUrl });
       }
       if (request.method === 'GET') {
@@ -159,12 +227,17 @@ export default {
         object.writeHttpMetadata(headers);
         headers.set('etag', object.httpEtag);
         headers.set('cache-control', 'public, max-age=31536000, immutable');
+        headers.set('x-content-type-options', 'nosniff');
         return new Response(object.body, { headers });
       }
-      return new Response('Method not allowed', { status: 405 });
+      return new Response('Method not allowed', { status: 405, headers: { allow: 'GET, PUT' } });
     }
 
-    if (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/')) return mcp(request, env, ctx);
+    if (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/')) {
+      const denied = requireAuth(request, env);
+      if (denied) return denied;
+      return mcp(request, env, ctx);
+    }
     return new Response('Ghostwriter on Cloudflare. MCP endpoint: /mcp', { status: 200 });
   }
 } satisfies ExportedHandler<Env>;
