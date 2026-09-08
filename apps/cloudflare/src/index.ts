@@ -42,11 +42,7 @@ class WorkerAI {
       const res = await fetch(this.env.AI_API_URL, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${this.env.AI_API_KEY}` },
-        body: JSON.stringify({
-          model: this.env.AI_MODEL,
-          response_format: { type: 'json_object' },
-          messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }]
-        }),
+        body: JSON.stringify({ model: this.env.AI_MODEL, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] }),
         signal: controller.signal
       });
       if (!res.ok) throw new Error(`AI provider failed: ${res.status} ${await res.text()}`);
@@ -54,9 +50,7 @@ class WorkerAI {
       const text = data?.choices?.[0]?.message?.content;
       if (!text) throw new Error('AI provider returned no JSON content');
       return JSON.parse(text);
-    } finally {
-      clearTimeout(timeout);
-    }
+    } finally { clearTimeout(timeout); }
   }
 }
 
@@ -81,9 +75,7 @@ class WorkerInstagram {
       const qs = new URLSearchParams({ fields: 'status_code,status', access_token: this.env.INSTAGRAM_ACCESS_TOKEN });
       const status = await this.request(`${containerId}?${qs.toString()}`);
       if (status.status_code === 'FINISHED') return;
-      if (status.status_code === 'ERROR' || status.status_code === 'EXPIRED') {
-        throw new Error(`Instagram container ${containerId} failed: ${status.status ?? status.status_code}`);
-      }
+      if (status.status_code === 'ERROR' || status.status_code === 'EXPIRED') throw new Error(`Instagram container ${containerId} failed: ${status.status ?? status.status_code}`);
       await new Promise((resolve) => setTimeout(resolve, 2_500));
     }
     throw new Error(`Instagram container ${containerId} did not finish processing in time`);
@@ -113,18 +105,20 @@ function service(env: Env) {
   return new GhostwriterService({ store: new D1Store(env.DB), ai: new WorkerAI(env), instagram: new WorkerInstagram(env) });
 }
 
+const textResult = (value: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(value) }] });
+
 function createServer(env: Env) {
-  const server = new McpServer({ name: 'ghostwriter', version: '0.3.0' });
-  server.registerTool('get_identity', { description: 'Get the creator identity and brand rules Ghostwriter uses.', inputSchema: {}, annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false } }, async () => ({ content: [{ type: 'text', text: JSON.stringify(await service(env).getIdentity()) }] }));
-  server.registerTool('save_identity', { description: 'Save or replace the creator identity and brand rules.', inputSchema: { identity: z.record(z.string(), z.unknown()) }, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false } }, async ({ identity }) => ({ content: [{ type: 'text', text: JSON.stringify(await service(env).saveIdentity(identity)) }] }));
-  server.registerTool('generate_carousel', { description: 'Generate and persist an Instagram carousel draft using the saved identity and learned strategy.', inputSchema: { objective: z.string().optional(), pillar: z.string().optional() }, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true } }, async (args) => ({ content: [{ type: 'text', text: JSON.stringify(await service(env).generate(args)) }] }));
-  server.registerTool('get_history', { description: 'Return Ghostwriter publishing history and stored metrics.', inputSchema: {}, annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false } }, async () => ({ content: [{ type: 'text', text: JSON.stringify(await service(env).history()) }] }));
-  server.registerTool('get_draft', { description: 'Get one saved carousel draft by ID.', inputSchema: { draftId: z.string() }, annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false } }, async ({ draftId }) => ({ content: [{ type: 'text', text: JSON.stringify(await service(env).getDraft(draftId)) }] }));
-  server.registerTool('record_metrics', { description: 'Record observed Instagram metrics for a media ID already present in Ghostwriter history.', inputSchema: { mediaId: z.string(), metrics: z.record(z.string(), z.number()) }, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false } }, async ({ mediaId, metrics }) => ({ content: [{ type: 'text', text: JSON.stringify(await service(env).recordMetrics(mediaId, metrics)) }] }));
-  server.registerTool('get_schedules', { description: 'Return persisted scheduled publishing jobs and approval state.', inputSchema: {}, annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false } }, async () => ({ content: [{ type: 'text', text: JSON.stringify(await service(env).getSchedules()) }] }));
-  server.registerTool('schedule_carousel', { description: 'Persist a carousel publishing job for a future time. Manual approval is required by default.', inputSchema: { draftId: z.string(), runAt: z.string(), imageUrls: z.array(z.string().url()).min(2).max(10), approvalRequired: z.boolean().optional() }, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false } }, async (args) => ({ content: [{ type: 'text', text: JSON.stringify(await service(env).schedule({ ...args, approvalRequired: args.approvalRequired ?? true })) }] }));
-  server.registerTool('approve_schedule', { description: 'Explicitly approve one scheduled carousel for automatic publication when due.', inputSchema: { scheduleId: z.string() }, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false } }, async ({ scheduleId }) => ({ content: [{ type: 'text', text: JSON.stringify(await service(env).approveSchedule(scheduleId)) }] }));
-  server.registerTool('publish_carousel', { description: 'Publish a saved carousel draft to the connected Instagram account. This is an external write action and must only be called after explicit user approval.', inputSchema: { draftId: z.string(), imageUrls: z.array(z.string().url()).min(2).max(10) }, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true } }, async ({ draftId, imageUrls }) => ({ content: [{ type: 'text', text: JSON.stringify(await service(env).publish({ draftId, imageUrls })) }] }));
+  const server = new McpServer({ name: 'ghostwriter', version: '0.3.1' });
+  server.registerTool('get_identity', { description: 'Get the creator identity and brand rules Ghostwriter uses.', inputSchema: z.object({}), annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false } }, async () => textResult(await service(env).getIdentity()));
+  server.registerTool('save_identity', { description: 'Save or replace the creator identity and brand rules.', inputSchema: z.object({ identity: z.record(z.string(), z.unknown()) }), annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false } }, async ({ identity }) => textResult(await service(env).saveIdentity(identity)));
+  server.registerTool('generate_carousel', { description: 'Generate and persist an Instagram carousel draft using the saved identity and learned strategy.', inputSchema: z.object({ objective: z.string().optional(), pillar: z.string().optional() }), annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true } }, async (args) => textResult(await service(env).generate(args)));
+  server.registerTool('get_history', { description: 'Return Ghostwriter publishing history and stored metrics.', inputSchema: z.object({}), annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false } }, async () => textResult(await service(env).history()));
+  server.registerTool('get_draft', { description: 'Get one saved carousel draft by ID.', inputSchema: z.object({ draftId: z.string() }), annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false } }, async ({ draftId }) => textResult(await service(env).getDraft(draftId)));
+  server.registerTool('record_metrics', { description: 'Record observed Instagram metrics for a media ID already present in Ghostwriter history.', inputSchema: z.object({ mediaId: z.string(), metrics: z.record(z.string(), z.number()) }), annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false } }, async ({ mediaId, metrics }) => textResult(await service(env).recordMetrics(mediaId, metrics)));
+  server.registerTool('get_schedules', { description: 'Return persisted scheduled publishing jobs and approval state.', inputSchema: z.object({}), annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false } }, async () => textResult(await service(env).getSchedules()));
+  server.registerTool('schedule_carousel', { description: 'Persist a carousel publishing job for a future time. Manual approval is required by default.', inputSchema: z.object({ draftId: z.string(), runAt: z.string(), imageUrls: z.array(z.string().url()).min(2).max(10), approvalRequired: z.boolean().optional() }), annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false } }, async ({ draftId, runAt, imageUrls, approvalRequired }) => textResult(await service(env).schedule({ draftId, runAt, imageUrls, approvalRequired: approvalRequired ?? true })));
+  server.registerTool('approve_schedule', { description: 'Explicitly approve one scheduled carousel for automatic publication when due.', inputSchema: z.object({ scheduleId: z.string() }), annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false } }, async ({ scheduleId }) => textResult(await service(env).approveSchedule(scheduleId)));
+  server.registerTool('publish_carousel', { description: 'Publish a saved carousel draft to the connected Instagram account. This is an external write action and must only be called after explicit user approval.', inputSchema: z.object({ draftId: z.string(), imageUrls: z.array(z.string().url()).min(2).max(10) }), annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true } }, async ({ draftId, imageUrls }) => textResult(await service(env).publish({ draftId, imageUrls })));
   return server;
 }
 
