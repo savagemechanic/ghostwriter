@@ -112,6 +112,7 @@ export class GhostwriterService {
     }
   }
 
+  /** @param {{draftId?: string, runAt?: string, imageUrls?: string[], approvalRequired?: boolean}} options */
   async schedule({ draftId, runAt, imageUrls = [], approvalRequired = true } = {}) {
     const draft = await this.getDraft(draftId);
     if (!draft) throw new Error('Draft not found');
