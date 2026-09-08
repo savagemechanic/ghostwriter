@@ -19,11 +19,11 @@ test("filesystem concurrent updates preserve both writes", async (t) => {
     s.update("jobs", [], (a) => [...a, 1]),
     s.update("jobs", [], (a) => [...a, 2]),
   ]);
-  assert.deepEqual(await s.read("jobs"), [1, 2]);
+  assert.deepEqual((await s.read("jobs")).sort(), [1, 2]);
 });
 test("filesystem publish claim succeeds exactly once", async (t) => {
   const s = await store(t);
   await s.write("draft-d", { id: "d", status: "draft" });
   const claims = await Promise.all([s.claimPublish("d"), s.claimPublish("d")]);
-  assert.deepEqual(claims, [true, false]);
+  assert.deepEqual(claims.sort(), [false, true]);
 });
