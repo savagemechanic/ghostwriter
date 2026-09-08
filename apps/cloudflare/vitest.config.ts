@@ -7,6 +7,7 @@ export default defineConfig({
       miniflare: {
         r2Buckets: ["ASSETS"],
         bindings: {
+          PUBLIC_BASE_URL: "https://ghostwriter.example",
           GHOSTWRITER_ADMIN_TOKEN: "test-owner-key-that-is-never-real",
         },
       },

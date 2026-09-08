@@ -463,3 +463,5 @@ test("personal deployment works without any R2 binding", async () => {
     parsed.result.tools.some((tool: any) => tool.name === "generate_images"),
   ).toBe(false);
 });
+
+test('OAuth rejects requests on a noncanonical host',async()=>{expect((await request('/mcp',{method:'POST'},{PUBLIC_BASE_URL:'https://different.example'})).status).toBe(400);});
