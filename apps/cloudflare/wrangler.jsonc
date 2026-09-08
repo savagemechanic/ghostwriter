@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ghostwriter",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "AI_API_URL": "https://api.openai.com/v1/chat/completions",
+    "META_GRAPH_BASE": "https://graph.facebook.com",
+    "META_GRAPH_VERSION": "v23.0"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ghostwriter",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "ASSETS",
+      "bucket_name": "ghostwriter-assets"
+    }
+  ]
+}
